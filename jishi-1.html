@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>多事项倒计时管理</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 8px 9px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 800px;
+            width: 90%;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+        }
+
+        .countdown-item {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            line-height: 28px;
+            transition: all 0.2s ease;
+        }
+
+        .delete-btn:hover {
+            background: #c0392b;
+            transform: scale(1.1);
+        }
+
+        .addBtn {
+            background: #2ecc71;
+            margin: 15px 0;
+            padding: 12px 24px;
+            border-radius: 25px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .addBtn:hover {
+            background: #27ae60;
+            transform: scale(1.05);
+        }
+
+        .input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .event-input {
+            flex: 2;
+            min-width: 200px;
+            padding: 8px;
+            border: 2px solid #3498db;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .time-input {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid #3498db;
+            border-radius: 5px;
+            min-width: 200px;
+        }
+
+        .start-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .start-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .time-display {
+            margin-top: 15px;
+        }
+
+        .time-unit {
+            display: inline-block;
+            margin: 0 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            min-width: 80px;
+        }
+
+        .label {
+            font-size: 20px;
+            color: #95a5a6;
+            margin-top: 5px;
+        }
+
+        .expired {
+            background: #ffebee;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        @media (max-width: 600px) {
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .event-input,
+            .time-input {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>时不我待</h1>
+        <button id="addBtn" onclick="addCountdown()">+ 添加新事项</button>
+        <div id="countdowns"></div>
+    </div>
+
+    <script>
+        class Countdown {
+            constructor(container) {
+                this.container = container;
+                this.interval = null;
+                this.isRunning = false;
+                this.createUI();
+            }
+
+            createUI() {
+                this.element = document.createElement('div');
+                this.element.className = 'countdown-item';
+                this.element.innerHTML = `
+                    <button class="delete-btn" onclick="this.parentElement.remove()">×</button>
+                    <div class="input-group">
+                        <input type="text" class="event-input" placeholder="输入事项名称">
+                        <input type="datetime-local" class="time-input">
+                        <button class="start-btn">设置事项</button>
+                    </div>
+                    <div class="time-display">
+                        <div class="time-unit">
+                            <span class="days">00</span>
+                            <div class="label">天</div>
+                        </div>
+                        <div class="time-unit">
+                            <span class="hours">00</span>
+                            <div class="label">小时</div>
+                        </div>
+                        <div class="time-unit">
+                            <span class="minutes">00</span>
+                            <div class="label">分</div>
+                        </div>
+                        <div class="time-unit">
+                            <span class="seconds">00</span>
+                            <div class="label">秒</div>
+                        </div>
+                    </div>
+                `;
+
+                // 设置默认时间
+                const timeInput = this.element.querySelector('.time-input');
+                const defaultTime = new Date();
+                defaultTime.setHours(defaultTime.getHours() + 1);
+                timeInput.value = defaultTime.toISOString().slice(0, 16);
+
+                // 事件绑定
+                const eventInput = this.element.querySelector('.event-input');
+                const startBtn = this.element.querySelector('.start-btn');
+                
+                eventInput.addEventListener('input', () => {
+                    startBtn.textContent = eventInput.value.trim() || "未命名事项";
+                });
+
+                startBtn.addEventListener('click', () => this.start());
+                this.container.appendChild(this.element);
+            }
+
+            start() {
+                const eventName = this.element.querySelector('.event-input').value.trim();
+                const endTime = new Date(this.element.querySelector('.time-input').value);
+
+                if (!eventName) {
+                    alert('请输入事项名称');
+                    return;
+                }
+
+                if (isNaN(endTime)) {
+                    alert('请选择有效时间');
+                    return;
+                }
+
+                this.isRunning = true;
+                this.updateButtonState();
+                this.update(endTime);
+                clearInterval(this.interval);
+                this.interval = setInterval(() => this.update(endTime), 1000);
+            }
+
+            updateButtonState() {
+                const btn = this.element.querySelector('.start-btn');
+                btn.disabled = this.isRunning;
+            }
+
+            update(endTime) {
+                const now = new Date();
+                const distance = endTime - now;
+
+                if (distance < 0) {
+                    this.element.classList.add('expired');
+                    clearInterval(this.interval);
+                    this.isRunning = false;
+                    this.updateButtonState();
+                    return;
+                }
+
+                this.element.classList.remove('expired');
+
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                this.element.querySelector('.days').textContent = days.toString().padStart(2, '0');
+                this.element.querySelector('.hours').textContent = hours.toString().padStart(2, '0');
+                this.element.querySelector('.minutes').textContent = minutes.toString().padStart(2, '0');
+                this.element.querySelector('.seconds').textContent = seconds.toString().padStart(2, '0');
+            }
+        }
+
+        function addCountdown() {
+            const container = document.getElementById('countdowns');
+            new Countdown(container);
+        }
+
+        // 初始化时自动添加一个倒计时
+        addCountdown();
+    </script>
+</body>
+</html>
